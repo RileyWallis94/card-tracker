@@ -55,71 +55,103 @@
     </button>
   </nav>
 
-  <script>
-    // --- 1. CONFIGURATION ---
-    const SUPABASE_URL = https://jitybdvzprxuosrnosgv.supabase.co/rest/v1/;
-    const SUPABASE_ANON_KEY = sb_publishable_FVLqmAx_FD2LugPTmg5yAg_6e3srN37;
-
-    const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    // --- 2. FETCH & COMPUTE MEDIAN FMV ---
-    async function loadCards() {
-      const { data: cards, error: errCards } = await db.from('cards').select('*');
-      const { data: comps, error: errComps } = await db.from('sales_comps').select('*');
-
-      document.getElementById('loader').classList.add('hidden');
+    <script>
+    // --- ON-SCREEN ERROR CATCHER ---
+    window.onerror = function(message, source, lineno) {
+      const loader = document.getElementById('loader');
+      if (loader) loader.classList.add('hidden');
       const container = document.getElementById('cards-container');
       container.classList.remove('hidden');
+      container.innerHTML = `
+        <div class="bg-rose-950/80 border border-rose-700 text-rose-200 p-4 rounded-xl text-xs font-mono space-y-1">
+          <p class="font-bold">⚠️ App Error:</p>
+          <p>${message}</p>
+          <p class="text-rose-400">Line: ${lineno}</p>
+        </div>
+      `;
+    };
 
-      if (!cards || cards.length === 0) {
-        container.innerHTML = `<p class="text-center text-slate-500 text-sm">No cards tracked yet.</p>`;
-        return;
-      }
+    // --- 1. CONFIGURATION ---
+    const SUPABASE_URL = "https://jitybdvzprxuosrnosgv.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_FVLqmAx_FD2LugPTmg5yAg_6e3srN37";
 
-      container.innerHTML = cards.map(card => {
-        const cardComps = comps ? comps.filter(c => c.card_id === card.id) : [];
-        const gradeGroups = {};
+    async function loadCards() {
+      try {
+        const client = window.supabase || supabase;
+        if (!client || !client.createClient) {
+          throw new Error("Supabase library failed to load. Check your internet connection.");
+        }
 
-        cardComps.forEach(c => {
-          if (!gradeGroups[c.grade]) gradeGroups[c.grade] = [];
-          gradeGroups[c.grade].push(Number(c.total_cost));
-        });
+        const db = client.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Compute median per grade
-        const gradeBadges = Object.keys(gradeGroups).map(grade => {
-          const prices = gradeGroups[grade].sort((a, b) => a - b);
-          const mid = Math.floor(prices.length / 2);
-          const median = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+        // Fetch cards and comps
+        const { data: cards, error: errCards } = await db.from('cards').select('*');
+        if (errCards) throw new Error("Cards Query: " + errCards.message);
+
+        const { data: comps, error: errComps } = await db.from('sales_comps').select('*');
+        if (errComps) throw new Error("Comps Query: " + errComps.message);
+
+        // Hide loader and show container
+        document.getElementById('loader').classList.add('hidden');
+        const container = document.getElementById('cards-container');
+        container.classList.remove('hidden');
+
+        if (!cards || cards.length === 0) {
+          container.innerHTML = `<p class="text-center text-slate-500 text-sm py-10">No cards tracked yet in Supabase.</p>`;
+          return;
+        }
+
+        container.innerHTML = cards.map(card => {
+          const cardComps = comps ? comps.filter(c => c.card_id === card.id) : [];
+          const gradeGroups = {};
+
+          cardComps.forEach(c => {
+            if (!gradeGroups[c.grade]) gradeGroups[c.grade] = [];
+            gradeGroups[c.grade].push(Number(c.total_cost));
+          });
+
+          const gradeBadges = Object.keys(gradeGroups).map(grade => {
+            const prices = gradeGroups[grade].sort((a, b) => a - b);
+            const mid = Math.floor(prices.length / 2);
+            const median = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+
+            return `
+              <div class="flex items-center justify-between bg-slate-950/80 border border-slate-800/80 px-3 py-2 rounded-xl">
+                <span class="text-xs font-semibold ${grade === 'PSA 10' ? 'text-amber-400' : 'text-slate-300'}">${grade}</span>
+                <div class="text-right">
+                  <span class="text-sm font-bold text-slate-100">$${median.toFixed(2)}</span>
+                  <span class="text-[10px] text-slate-500 ml-1">(${prices.length} sales)</span>
+                </div>
+              </div>
+            `;
+          }).join('');
 
           return `
-            <div class="flex items-center justify-between bg-slate-950/80 border border-slate-800/80 px-3 py-2 rounded-xl">
-              <span class="text-xs font-semibold ${grade === 'PSA 10' ? 'text-amber-400' : 'text-slate-300'}">${grade}</span>
-              <div class="text-right">
-                <span class="text-sm font-bold text-slate-100">$${median.toFixed(2)}</span>
-                <span class="text-[10px] text-slate-500 ml-1">(${prices.length} sales)</span>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+              <div>
+                <span class="text-[10px] uppercase font-semibold tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded-md">
+                  ${card.card_year} ${card.card_set}
+                </span>
+                <h2 class="text-lg font-bold text-slate-100 mt-1">${card.player_name}</h2>
+                <p class="text-xs text-slate-400">${card.variation} Parallel</p>
+              </div>
+              <div class="space-y-1.5 pt-2 border-t border-slate-800/60">
+                ${gradeBadges || '<p class="text-xs text-slate-500">No sold comps yet</p>'}
               </div>
             </div>
           `;
         }).join('');
-
-        return `
-          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
-            <div>
-              <span class="text-[10px] uppercase font-semibold tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 rounded-md">
-                ${card.card_year} ${card.card_set}
-              </span>
-              <h2 class="text-lg font-bold text-slate-100 mt-1">${card.player_name}</h2>
-              <p class="text-xs text-slate-400">${card.variation} Parallel</p>
-            </div>
-            <div class="space-y-1.5 pt-2 border-t border-slate-800/60">
-              ${gradeBadges || '<p class="text-xs text-slate-500">No sold comps yet</p>'}
-            </div>
-          </div>
-        `;
-      }).join('');
+      } catch (err) {
+        window.onerror(err.message, "script", 0);
+      }
     }
 
-    loadCards();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadCards);
+    } else {
+      loadCards();
+    }
   </script>
+
 </body>
 </html>
