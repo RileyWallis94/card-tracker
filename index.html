@@ -19,6 +19,11 @@
     body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
   </style>
 </head>
+  <!-- PWA Manifest & App Icons -->
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon.svg" />
+
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col pb-24 select-none">
 
   <!-- Mobile Header -->
@@ -151,6 +156,12 @@
     } else {
       loadCards();
     }
+      if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(console.error);
+  });
+}
+
   </script>
 
 </body>
