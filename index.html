@@ -13,10 +13,10 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
 
-  <!-- Tailwind CSS, Supabase & Chart.js -->
+  <!-- Tailwind CSS, Supabase & Chart.js (UMD Browser Build) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
   <style>
     body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
@@ -39,7 +39,7 @@
       </div>
     </div>
 
-    <!-- FMV Controls (Only visible on FMV tab) -->
+    <!-- FMV Search & Filter (Visible only on FMV tab) -->
     <div id="fmv-controls" class="space-y-2">
       <div class="relative">
         <input 
@@ -61,18 +61,21 @@
       </div>
     </div>
 
-    <!-- Trends Filter Controls (Only visible on Trends tab) -->
+    <!-- Trends Filter (Visible only on Trends tab) -->
     <div id="trends-controls" class="hidden space-y-2">
       <div class="flex gap-2">
         <select id="trend-card-select" class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"></select>
-        <select id="trend-grade-select" class="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"></select>
+        <select id="trend-grade-select" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"></select>
       </div>
     </div>
   </header>
 
   <!-- Main View -->
   <main class="flex-1 px-4 pt-4 space-y-3 max-w-md mx-auto w-full">
-    <!-- Spinner -->
+    <!-- Visual Error Container -->
+    <div id="error-box" class="hidden bg-rose-950/80 border border-rose-700 text-rose-200 p-4 rounded-xl text-xs font-mono space-y-1"></div>
+
+    <!-- Loading Spinner -->
     <div id="loader" class="flex justify-center items-center py-20">
       <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
     </div>
@@ -84,7 +87,6 @@
 
     <!-- 2. TRENDS TAB VIEW -->
     <div id="trends-view" class="space-y-4 hidden">
-      <!-- Summary Badges -->
       <div class="grid grid-cols-3 gap-2">
         <div class="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-center">
           <p class="text-[9px] text-slate-400 font-medium">Comps Count</p>
@@ -100,25 +102,23 @@
         </div>
       </div>
 
-      <!-- Chart Container -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 shadow-xl">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs font-bold text-slate-200">Historical Comps</span>
-          <span id="chart-indicator" class="text-[10px] text-emerald-400 font-semibold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/60"></span>
+          <span id="chart-indicator" class="text-[10px] text-emerald-400 font-semibold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/60">All Grades</span>
         </div>
         <div class="relative h-56 w-full">
           <canvas id="compsChart"></canvas>
         </div>
       </div>
 
-      <!-- Sales List Timeline -->
       <div class="space-y-2">
         <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Sale History Comps</h3>
         <div id="trend-sales-list" class="space-y-1.5"></div>
       </div>
     </div>
 
-    <!-- 3. PORTFOLIO TAB PLACEHOLDER -->
+    <!-- 3. PORTFOLIO TAB VIEW -->
     <div id="portfolio-view" class="hidden text-center py-20 text-slate-500 text-xs">
       Personal portfolio vault coming soon.
     </div>
@@ -126,49 +126,4 @@
 
   <!-- Bottom Navigation Tab Bar -->
   <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-6 py-2.5 flex justify-around items-center max-w-md mx-auto">
-    <!-- FMV Tab Button -->
     <button id="nav-fmv" onclick="switchTab('fmv')" class="flex flex-col items-center text-emerald-400">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-      <span class="text-[10px] font-semibold mt-1">FMV</span>
-    </button>
-    <!-- Portfolio Tab Button -->
-    <button id="nav-portfolio" onclick="switchTab('portfolio')" class="flex flex-col items-center text-slate-500 hover:text-slate-300 transition">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-      <span class="text-[10px] font-medium mt-1">Portfolio</span>
-    </button>
-    <!-- Trends Tab Button -->
-    <button id="nav-trends" onclick="switchTab('trends')" class="flex flex-col items-center text-slate-500 hover:text-slate-300 transition">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-      <span class="text-[10px] font-medium mt-1">Trends</span>
-    </button>
-  </nav>
-
-  <script>
-    const SUPABASE_URL = "https://jitybdvzprxuosrnosgv.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_FVLqmAx_FD2LugPTmg5yAg_6e3srN37";
-
-    let db;
-    let allCards = [];
-    let allComps = [];
-    let activeChart = null;
-    let currentTab = 'fmv';
-
-    async function initApp() {
-      try {
-        const client = window.supabase || supabase;
-        db = client.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        const { data: cards, error: errCards } = await db.from('cards').select('*');
-        if (errCards) throw errCards;
-        allCards = cards || [];
-
-        const { data: comps, error: errComps } = await db.from('sales_comps').select('*').order('sold_date', { ascending: true });
-        if (errComps) throw errComps;
-        allComps = comps || [];
-
-        populateFilters();
-        renderFMV();
-        setupTrendsView();
-
-        document.getElementById('loader').classList.add('hidden');
-        document
