@@ -18,6 +18,8 @@
 
   <style>
     body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col pb-24 select-none">
@@ -29,11 +31,12 @@
         <h1 class="text-xl font-black tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           CardFMV
         </h1>
-        <p class="text-[10px] text-slate-400">Personal Show Price Companion</p>
+        <p id="cache-timestamp" class="text-[10px] text-slate-400">Personal Show Price Companion</p>
       </div>
-      <div class="flex items-center space-x-1.5 bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 rounded-full">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span class="text-[10px] font-semibold text-emerald-300">Live</span>
+      <!-- Connection Status Badge -->
+      <div id="status-badge" class="flex items-center space-x-1.5 bg-emerald-950/70 border border-emerald-800/60 px-2.5 py-0.5 rounded-full">
+        <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="status-text" class="text-[10px] font-semibold text-emerald-300">Live</span>
       </div>
     </div>
 
@@ -83,6 +86,98 @@
     <div id="cards-container" class="space-y-3 hidden"></div>
   </main>
 
+  <!-- Deal Calculator & Comps Bottom Sheet Modal -->
+  <div id="deal-modal" class="fixed inset-0 z-50 hidden flex flex-col justify-end bg-black/75 backdrop-blur-sm">
+    <!-- Backdrop Tap to Close -->
+    <div id="modal-backdrop" class="flex-1 w-full"></div>
+
+    <!-- Sheet Content -->
+    <div class="bg-slate-900 border-t border-slate-800 rounded-t-2xl p-4 pb-8 max-w-md mx-auto w-full space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+      <!-- Handle & Close -->
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <span id="modal-set-badge" class="text-[9px] uppercase font-bold tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-1.5 py-0.5 rounded"></span>
+          <h3 id="modal-player" class="text-base font-black text-slate-100 truncate mt-1"></h3>
+          <p id="modal-variation" class="text-xs text-cyan-400 font-medium truncate"></p>
+        </div>
+        <button id="close-modal-btn" class="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Grade & Median Banner -->
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Selected Condition</span>
+          <span id="modal-grade" class="text-sm font-extrabold text-amber-400">PSA 10</span>
+        </div>
+        <div class="text-right">
+          <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Verified Median FMV</span>
+          <span id="modal-median" class="text-lg font-black text-emerald-400">$0.00</span>
+        </div>
+      </div>
+
+      <!-- Instant Cash Offer Targets (75% / 80% / 85%) -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Quick Show Offer Tiers (Tap to Test)</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" data-tier="0.75" class="tier-btn bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl p-2 text-center transition">
+            <span class="text-[10px] font-bold text-slate-400 block">75% Margin</span>
+            <span id="tier-75" class="text-xs font-extrabold text-slate-100 mt-0.5 block">$0.00</span>
+          </button>
+          <button type="button" data-tier="0.80" class="tier-btn bg-slate-950 hover:bg-slate-800 border border-emerald-800/60 rounded-xl p-2 text-center transition">
+            <span class="text-[10px] font-bold text-emerald-400 block">80% Standard</span>
+            <span id="tier-80" class="text-xs font-extrabold text-emerald-300 mt-0.5 block">$0.00</span>
+          </button>
+          <button type="button" data-tier="0.85" class="tier-btn bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl p-2 text-center transition">
+            <span class="text-[10px] font-bold text-cyan-400 block">85% Grail</span>
+            <span id="tier-85" class="text-xs font-extrabold text-slate-100 mt-0.5 block">$0.00</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dealer Sticker / Asking Price Input -->
+      <div class="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
+        <label for="ask-price-input" class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+          Dealer Asking / Sticker Price ($)
+        </label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
+          <input 
+            id="ask-price-input" 
+            type="number" 
+            step="0.01" 
+            inputmode="decimal"
+            placeholder="Enter booth sticker price..." 
+            class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+          />
+        </div>
+
+        <!-- Live Verdict Output -->
+        <div id="deal-verdict-box" class="hidden rounded-lg p-2.5 border text-xs flex items-center justify-between">
+          <div>
+            <span id="verdict-label" class="font-extrabold block"></span>
+            <span id="verdict-sub" class="text-[10px] opacity-80 block"></span>
+          </div>
+          <div class="text-right">
+            <span id="verdict-diff" class="text-sm font-black block"></span>
+            <span id="verdict-pct" class="text-[10px] font-bold block"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Sales Comps List -->
+      <div class="space-y-1.5">
+        <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+          Recent Verified Sales (<span id="modal-comp-count">0</span>)
+        </span>
+        <div id="modal-comps-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-1"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Bottom Navigation Tab Bar -->
   <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-6 py-2.5 flex justify-around items-center max-w-md mx-auto">
     <button class="flex flex-col items-center text-emerald-400">
@@ -102,10 +197,11 @@
   <script>
     const SUPABASE_URL = "https://jitybdvzprxuosrnosgv.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_FVLqmAx_FD2LugPTmg5yAg_6e3srN37";
+    const CACHE_KEY = "cardfmv_offline_cache_v1";
 
     let allProcessedCards = [];
+    let activeModalMedian = 0;
 
-    // Fallback parser in case any legacy rows haven't been migrated yet
     function normalizeCardMetadata(card) {
       let brand = (card.brand || "").trim();
       let set = (card.card_set || "").trim();
@@ -130,7 +226,82 @@
       return { brand, clean_set: set || card.card_set, card_num: cardNum, clean_variation: variation };
     }
 
+    function setConnectionStatus(isOnline, cacheTimeStr) {
+      const badge = document.getElementById('status-badge');
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      const sub = document.getElementById('cache-timestamp');
+
+      if (isOnline) {
+        badge.className = "flex items-center space-x-1.5 bg-emerald-950/70 border border-emerald-800/60 px-2.5 py-0.5 rounded-full";
+        dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse";
+        text.className = "text-[10px] font-semibold text-emerald-300";
+        text.textContent = "Live";
+        sub.textContent = "Tap any grade badge to open Deal Calculator";
+      } else {
+        badge.className = "flex items-center space-x-1.5 bg-amber-950/80 border border-amber-700/70 px-2.5 py-0.5 rounded-full";
+        dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400";
+        text.className = "text-[10px] font-semibold text-amber-300";
+        text.textContent = "Offline Cache";
+        sub.textContent = cacheTimeStr ? `Cached: ${cacheTimeStr}` : "Running on offline show cache";
+      }
+    }
+
+    function processRawTables(cards, comps) {
+      return (cards || []).map(card => {
+        const cardComps = comps ? comps.filter(c => c.card_id === card.id) : [];
+        const gradeGroups = {};
+        const gradeRecords = {};
+
+        cardComps.forEach(c => {
+          if (!gradeGroups[c.grade]) {
+            gradeGroups[c.grade] = [];
+            gradeRecords[c.grade] = [];
+          }
+          const total = Number(c.total_cost);
+          gradeGroups[c.grade].push(total);
+          gradeRecords[c.grade].push({
+            title: c.title,
+            total_cost: total,
+            sold_date: c.sold_date,
+            ebay_url: c.ebay_url
+          });
+        });
+
+        let maxFMV = 0;
+        let totalSales = 0;
+
+        const gradeBadges = Object.keys(gradeGroups).map(grade => {
+          const prices = gradeGroups[grade].sort((a, b) => a - b);
+          const mid = Math.floor(prices.length / 2);
+          const median = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
+          
+          if (median > maxFMV) maxFMV = median;
+          totalSales += prices.length;
+
+          const sortedComps = gradeRecords[grade].sort((a, b) => new Date(b.sold_date) - new Date(a.sold_date));
+
+          return { grade, median, count: prices.length, comps: sortedComps };
+        });
+
+        const meta = normalizeCardMetadata(card);
+
+        return { 
+          ...card, 
+          brand_name: meta.brand,
+          clean_set: meta.clean_set,
+          card_num: meta.card_num,
+          clean_variation: meta.clean_variation,
+          grades: gradeBadges, 
+          maxFMV, 
+          totalSales 
+        };
+      });
+    }
+
     async function initApp() {
+      let loadedFromLive = false;
+
       try {
         const client = window.supabase || supabase;
         const db = client.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -141,74 +312,76 @@
         const { data: comps, error: errComps } = await db.from('sales_comps').select('*');
         if (errComps) throw errComps;
 
-        allProcessedCards = (cards || []).map(card => {
-          const cardComps = comps ? comps.filter(c => c.card_id === card.id) : [];
-          const gradeGroups = {};
+        allProcessedCards = processRawTables(cards, comps);
+        loadedFromLive = true;
 
-          cardComps.forEach(c => {
-            if (!gradeGroups[c.grade]) gradeGroups[c.grade] = [];
-            gradeGroups[c.grade].push(Number(c.total_cost));
-          });
+        // Save snapshot to localStorage for offline convention hall use
+        const nowStr = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          timestamp: nowStr,
+          cards,
+          comps
+        }));
 
-          let maxFMV = 0;
-          let totalSales = 0;
-
-          const gradeBadges = Object.keys(gradeGroups).map(grade => {
-            const prices = gradeGroups[grade].sort((a, b) => a - b);
-            const mid = Math.floor(prices.length / 2);
-            const median = prices.length % 2 !== 0 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2;
-            
-            if (median > maxFMV) maxFMV = median;
-            totalSales += prices.length;
-
-            return { grade, median, count: prices.length };
-          });
-
-          const meta = normalizeCardMetadata(card);
-
-          return { 
-            ...card, 
-            brand_name: meta.brand,
-            clean_set: meta.clean_set,
-            card_num: meta.card_num,
-            clean_variation: meta.clean_variation,
-            grades: gradeBadges, 
-            maxFMV, 
-            totalSales 
-          };
-        });
-
-        populateBrandOptions();
-        updateCascadingFilters();
-
-        document.getElementById('loader').classList.add('hidden');
-        document.getElementById('cards-container').classList.remove('hidden');
-
-        renderCards();
-
-        document.getElementById('search-input').addEventListener('input', renderCards);
-        document.getElementById('sort-select').addEventListener('change', renderCards);
-
-        document.getElementById('brand-filter').addEventListener('change', () => {
-          updateCascadingFilters('brand');
-          renderCards();
-        });
-
-        document.getElementById('year-filter').addEventListener('change', () => {
-          updateCascadingFilters('year');
-          renderCards();
-        });
-
-        document.getElementById('set-filter').addEventListener('change', () => {
-          updateCascadingFilters('set');
-          renderCards();
-        });
-
-        document.getElementById('variation-filter').addEventListener('change', renderCards);
-
+        setConnectionStatus(true);
       } catch (err) {
-        console.error(err);
+        console.warn("Live fetch failed, checking local offline cache...", err);
+        const cachedRaw = localStorage.getItem(CACHE_KEY);
+        if (cachedRaw) {
+          const parsed = JSON.parse(cachedRaw);
+          allProcessedCards = processRawTables(parsed.cards, parsed.comps);
+          setConnectionStatus(false, parsed.timestamp);
+        } else {
+          setConnectionStatus(false, "No cache available");
+        }
       }
+
+      populateBrandOptions();
+      updateCascadingFilters();
+
+      document.getElementById('loader').classList.add('hidden');
+      document.getElementById('cards-container').classList.remove('hidden');
+
+      renderCards();
+      bindUIListeners();
+    }
+
+    function bindUIListeners() {
+      document.getElementById('search-input').addEventListener('input', renderCards);
+      document.getElementById('sort-select').addEventListener('change', renderCards);
+
+      document.getElementById('brand-filter').addEventListener('change', () => {
+        updateCascadingFilters('brand');
+        renderCards();
+      });
+
+      document.getElementById('year-filter').addEventListener('change', () => {
+        updateCascadingFilters('year');
+        renderCards();
+      });
+
+      document.getElementById('set-filter').addEventListener('change', () => {
+        updateCascadingFilters('set');
+        renderCards();
+      });
+
+      document.getElementById('variation-filter').addEventListener('change', renderCards);
+
+      // Modal Listeners
+      document.getElementById('close-modal-btn').addEventListener('click', closeDealModal);
+      document.getElementById('modal-backdrop').addEventListener('click', closeDealModal);
+      document.getElementById('ask-price-input').addEventListener('input', evaluateDealPrice);
+
+      document.querySelectorAll('.tier-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const pct = parseFloat(btn.getAttribute('data-tier'));
+          if (activeModalMedian > 0) {
+            const targetVal = (activeModalMedian * pct).toFixed(2);
+            document.getElementById('ask-price-input').value = targetVal;
+            evaluateDealPrice();
+          }
+        });
+      });
     }
 
     function populateBrandOptions() {
@@ -233,7 +406,6 @@
       const prevSet = setSelect.value;
       const prevVar = varSelect.value;
 
-      // 1. Filter by Brand -> Populate Years
       const brandCards = allProcessedCards.filter(c => 
         selectedBrand === 'ALL' || c.brand_name === selectedBrand
       );
@@ -250,7 +422,6 @@
         yearSelect.value = years.includes(prevYear) ? prevYear : 'ALL';
       }
 
-      // 2. Filter by Brand + Year -> Populate Clean Sets
       const activeYear = yearSelect.value;
       const yearCards = brandCards.filter(c => 
         activeYear === 'ALL' || String(c.card_year) === activeYear
@@ -268,7 +439,6 @@
         setSelect.value = sets.includes(prevSet) ? prevSet : 'ALL';
       }
 
-      // 3. Filter by Brand + Year + Set -> Populate Parallels / Inserts
       const activeSet = setSelect.value;
       const setCards = yearCards.filter(c => 
         activeSet === 'ALL' || c.clean_set === activeSet
@@ -288,6 +458,91 @@
         varSelect.appendChild(opt);
       });
       varSelect.value = variations.includes(prevVar) ? prevVar : 'ALL';
+    }
+
+    function openDealModal(cardId, gradeName) {
+      const card = allProcessedCards.find(c => c.id === cardId);
+      if (!card) return;
+      const gradeObj = card.grades.find(g => g.grade === gradeName);
+      if (!gradeObj) return;
+
+      activeModalMedian = gradeObj.median;
+
+      document.getElementById('modal-set-badge').textContent = `${card.card_year} • ${card.brand_name} • ${card.clean_set} ${card.card_num || ''}`;
+      document.getElementById('modal-player').textContent = card.player_name;
+      document.getElementById('modal-variation').textContent = card.clean_variation;
+      document.getElementById('modal-grade').textContent = gradeObj.grade;
+      document.getElementById('modal-median').textContent = `$${gradeObj.median.toFixed(2)}`;
+
+      // Populate Offer Tiers
+      document.getElementById('tier-75').textContent = `$${(gradeObj.median * 0.75).toFixed(2)}`;
+      document.getElementById('tier-80').textContent = `$${(gradeObj.median * 0.80).toFixed(2)}`;
+      document.getElementById('tier-85').textContent = `$${(gradeObj.median * 0.85).toFixed(2)}`;
+
+      // Reset Input & Verdict
+      const input = document.getElementById('ask-price-input');
+      input.value = '';
+      document.getElementById('deal-verdict-box').classList.add('hidden');
+
+      // Populate Recent Comps List
+      document.getElementById('modal-comp-count').textContent = gradeObj.count;
+      const compsContainer = document.getElementById('modal-comps-list');
+      compsContainer.innerHTML = (gradeObj.comps || []).map(comp => `
+        <div class="flex items-center justify-between bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[11px]">
+          <div class="min-w-0 flex-1 pr-2">
+            <p class="text-slate-300 truncate">${comp.title}</p>
+            <span class="text-[9px] text-slate-500">${comp.sold_date || 'Recent'}</span>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="font-bold text-slate-100 block">$${comp.total_cost.toFixed(2)}</span>
+            ${comp.ebay_url ? `<a href="${comp.ebay_url}" target="_blank" class="text-[9px] text-emerald-400 underline">eBay ↗</a>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('deal-modal').classList.remove('hidden');
+      setTimeout(() => input.focus(), 100);
+    }
+
+    function closeDealModal() {
+      document.getElementById('deal-modal').classList.add('hidden');
+    }
+
+    function evaluateDealPrice() {
+      const val = parseFloat(document.getElementById('ask-price-input').value);
+      const box = document.getElementById('deal-verdict-box');
+      if (isNaN(val) || val <= 0 || activeModalMedian <= 0) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      const diff = val - activeModalMedian;
+      const pct = (diff / activeModalMedian) * 100;
+      const sign = diff > 0 ? '+' : '';
+
+      const label = document.getElementById('verdict-label');
+      const sub = document.getElementById('verdict-sub');
+      const diffEl = document.getElementById('verdict-diff');
+      const pctEl = document.getElementById('verdict-pct');
+
+      diffEl.textContent = `${sign}$${diff.toFixed(2)}`;
+      pctEl.textContent = `${sign}${pct.toFixed(1)}% vs FMV`;
+
+      if (pct <= -15) {
+        box.className = "rounded-lg p-2.5 border text-xs flex items-center justify-between bg-emerald-950/90 border-emerald-700 text-emerald-200";
+        label.textContent = "🔥 Strong Show Buy";
+        sub.textContent = "At or below 85% comp target";
+      } else if (pct <= 2) {
+        box.className = "rounded-lg p-2.5 border text-xs flex items-center justify-between bg-cyan-950/90 border-cyan-700 text-cyan-200";
+        label.textContent = "✅ Fair Market Comp";
+        sub.textContent = "Right at recent eBay median";
+      } else {
+        box.className = "rounded-lg p-2.5 border text-xs flex items-center justify-between bg-rose-950/90 border-rose-700 text-rose-200";
+        label.textContent = "⚠️ Above Market Comp";
+        sub.textContent = `Counter at $${(activeModalMedian * 0.80).toFixed(2)} (80%)`;
+      }
+
+      box.classList.remove('hidden');
     }
 
     function renderCards() {
@@ -326,13 +581,20 @@
 
       container.innerHTML = filtered.map(card => {
         const gradeList = card.grades.map(g => `
-          <div class="flex items-center justify-between bg-slate-950/80 border border-slate-800/80 px-2.5 py-1.5 rounded-lg">
-            <span class="text-[11px] font-semibold ${g.grade === 'PSA 10' ? 'text-amber-400' : 'text-slate-300'}">${g.grade}</span>
+          <button 
+            type="button"
+            onclick="openDealModal('${card.id}', '${g.grade.replace(/'/g, "\\'")}')"
+            class="w-full flex items-center justify-between bg-slate-950/90 hover:bg-slate-800/90 active:scale-[0.99] border border-slate-800/90 px-2.5 py-1.5 rounded-lg transition text-left"
+          >
+            <div class="flex items-center space-x-1.5">
+              <span class="text-[11px] font-semibold ${g.grade === 'PSA 10' ? 'text-amber-400' : 'text-slate-300'}">${g.grade}</span>
+              <span class="text-[9px] text-emerald-400/80 bg-emerald-950/60 px-1 rounded">Calc ⚖️</span>
+            </div>
             <div class="text-right">
               <span class="text-xs font-bold text-slate-100">$${g.median.toFixed(2)}</span>
               <span class="text-[9px] text-slate-500 ml-1">(${g.count} sales)</span>
             </div>
-          </div>
+          </button>
         `).join('');
 
         const cardImage = card.image_url 
@@ -359,7 +621,7 @@
               <h2 class="text-sm font-bold text-slate-100 truncate mt-1">${card.player_name}</h2>
               <p class="text-[10px] text-cyan-400/90 font-medium truncate mb-2">${card.clean_variation}</p>
               
-              <div class="space-y-1">
+              <div class="space-y-1.5">
                 ${gradeList || '<p class="text-[10px] text-slate-500">No comps</p>'}
               </div>
             </div>
