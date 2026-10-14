@@ -23,13 +23,13 @@
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col pb-24 select-none">
 
   <!-- Mobile Header -->
-  <header class="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 space-y-3">
+  <header class="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 space-y-2.5">
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-black tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
           CardFMV
         </h1>
-        <p class="text-[10px] text-slate-400">Market Price Intelligence</p>
+        <p class="text-[10px] text-slate-400">Personal Show Price Companion</p>
       </div>
       <div class="flex items-center space-x-1.5 bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 rounded-full">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -45,7 +45,7 @@
           <input 
             id="search-input" 
             type="text" 
-            placeholder="Search player, set, parallel..." 
+            placeholder="Search player, set, parallel, #..." 
             class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
           />
         </div>
@@ -56,16 +56,19 @@
         </select>
       </div>
 
-      <!-- Row 2: Brand -> Year -> Set Cascading Filters -->
-      <div class="grid grid-cols-3 gap-2">
-        <select id="brand-filter" class="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500 truncate">
+      <!-- Row 2: 2x2 Grid (Brand -> Year -> Set -> Variation/Insert) -->
+      <div class="grid grid-cols-2 gap-2">
+        <select id="brand-filter" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500 truncate">
           <option value="ALL">All Brands</option>
         </select>
-        <select id="year-filter" class="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500 truncate">
+        <select id="year-filter" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500 truncate">
           <option value="ALL">All Years</option>
         </select>
-        <select id="set-filter" class="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500 truncate">
+        <select id="set-filter" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500 truncate">
           <option value="ALL">All Sets</option>
+        </select>
+        <select id="variation-filter" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500 truncate">
+          <option value="ALL">All Parallels / Inserts</option>
         </select>
       </div>
     </div>
@@ -102,18 +105,29 @@
 
     let allProcessedCards = [];
 
-    function extractBrand(card) {
-      if (card.brand) return card.brand;
-      const setStr = (card.card_set || "").trim();
-      const knownBrands = ["Topps", "Panini", "Upper Deck", "Futera", "Leaf", "Bowman", "Donruss", "Select", "Prizm", "Pokemon"];
-      for (const b of knownBrands) {
-        if (setStr.toLowerCase().includes(b.toLowerCase())) {
-          if (["Prizm", "Donruss", "Select"].includes(b)) return "Panini";
-          if (b === "Bowman") return "Topps";
-          return b;
-        }
+    // Fallback parser in case any legacy rows haven't been migrated yet
+    function normalizeCardMetadata(card) {
+      let brand = (card.brand || "").trim();
+      let set = (card.card_set || "").trim();
+      let cardNum = (card.card_number || "").trim();
+      let variation = (card.variation || "Base").trim();
+
+      if (!cardNum) {
+        const numMatch = set.match(/#[A-Za-z0-9-]+/);
+        if (numMatch) cardNum = numMatch[0];
       }
-      return setStr.split(" ")[0] || "Other";
+
+      set = set.replace(/\s*#[A-Za-z0-9-]+/g, "").trim();
+
+      if (!brand) {
+        if (/topps|bowman|merlin/i.test(set)) brand = "Topps";
+        else if (/panini|prizm|donruss|select/i.test(set)) brand = "Panini";
+        else brand = set.split(" ")[0] || "Other";
+      }
+
+      set = set.replace(new RegExp(`^${brand}\\s+`, "i"), "").trim();
+
+      return { brand, clean_set: set || card.card_set, card_num: cardNum, clean_variation: variation };
     }
 
     async function initApp() {
@@ -150,9 +164,18 @@
             return { grade, median, count: prices.length };
           });
 
-          const detectedBrand = extractBrand(card);
+          const meta = normalizeCardMetadata(card);
 
-          return { ...card, brand_name: detectedBrand, grades: gradeBadges, maxFMV, totalSales };
+          return { 
+            ...card, 
+            brand_name: meta.brand,
+            clean_set: meta.clean_set,
+            card_num: meta.card_num,
+            clean_variation: meta.clean_variation,
+            grades: gradeBadges, 
+            maxFMV, 
+            totalSales 
+          };
         });
 
         populateBrandOptions();
@@ -176,7 +199,12 @@
           renderCards();
         });
 
-        document.getElementById('set-filter').addEventListener('change', renderCards);
+        document.getElementById('set-filter').addEventListener('change', () => {
+          updateCascadingFilters('set');
+          renderCards();
+        });
+
+        document.getElementById('variation-filter').addEventListener('change', renderCards);
 
       } catch (err) {
         console.error(err);
@@ -199,16 +227,19 @@
       const selectedBrand = document.getElementById('brand-filter').value;
       const yearSelect = document.getElementById('year-filter');
       const setSelect = document.getElementById('set-filter');
+      const varSelect = document.getElementById('variation-filter');
 
-      const previousYear = yearSelect.value;
-      const previousSet = setSelect.value;
+      const prevYear = yearSelect.value;
+      const prevSet = setSelect.value;
+      const prevVar = varSelect.value;
 
-      const brandFilteredCards = allProcessedCards.filter(c => 
+      // 1. Filter by Brand -> Populate Years
+      const brandCards = allProcessedCards.filter(c => 
         selectedBrand === 'ALL' || c.brand_name === selectedBrand
       );
 
-      if (changedLevel === 'brand' || !changedLevel) {
-        const years = [...new Set(brandFilteredCards.map(c => String(c.card_year)))].sort((a, b) => b - a);
+      if (!changedLevel || changedLevel === 'brand') {
+        const years = [...new Set(brandCards.map(c => String(c.card_year)))].sort((a, b) => b - a);
         yearSelect.innerHTML = '<option value="ALL">All Years</option>';
         years.forEach(y => {
           const opt = document.createElement('option');
@@ -216,32 +247,47 @@
           opt.textContent = y;
           yearSelect.appendChild(opt);
         });
-        if (years.includes(previousYear)) {
-          yearSelect.value = previousYear;
-        } else {
-          yearSelect.value = 'ALL';
-        }
+        yearSelect.value = years.includes(prevYear) ? prevYear : 'ALL';
       }
 
+      // 2. Filter by Brand + Year -> Populate Clean Sets
       const activeYear = yearSelect.value;
-      const yearFilteredCards = brandFilteredCards.filter(c => 
+      const yearCards = brandCards.filter(c => 
         activeYear === 'ALL' || String(c.card_year) === activeYear
       );
 
-      const sets = [...new Set(yearFilteredCards.map(c => c.card_set))].sort();
-      setSelect.innerHTML = '<option value="ALL">All Sets</option>';
-      sets.forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s;
-        opt.textContent = s;
-        setSelect.appendChild(opt);
+      if (!changedLevel || changedLevel === 'brand' || changedLevel === 'year') {
+        const sets = [...new Set(yearCards.map(c => c.clean_set))].sort();
+        setSelect.innerHTML = '<option value="ALL">All Sets</option>';
+        sets.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = s;
+          setSelect.appendChild(opt);
+        });
+        setSelect.value = sets.includes(prevSet) ? prevSet : 'ALL';
+      }
+
+      // 3. Filter by Brand + Year + Set -> Populate Parallels / Inserts
+      const activeSet = setSelect.value;
+      const setCards = yearCards.filter(c => 
+        activeSet === 'ALL' || c.clean_set === activeSet
+      );
+
+      const variations = [...new Set(setCards.map(c => c.clean_variation))].sort((a, b) => {
+        if (a === 'Base') return -1;
+        if (b === 'Base') return 1;
+        return a.localeCompare(b);
       });
 
-      if (sets.includes(previousSet)) {
-        setSelect.value = previousSet;
-      } else {
-        setSelect.value = 'ALL';
-      }
+      varSelect.innerHTML = '<option value="ALL">All Parallels / Inserts</option>';
+      variations.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        varSelect.appendChild(opt);
+      });
+      varSelect.value = variations.includes(prevVar) ? prevVar : 'ALL';
     }
 
     function renderCards() {
@@ -250,20 +296,23 @@
       const selectedBrand = document.getElementById('brand-filter').value;
       const selectedYear = document.getElementById('year-filter').value;
       const selectedSet = document.getElementById('set-filter').value;
+      const selectedVar = document.getElementById('variation-filter').value;
       const sort = document.getElementById('sort-select').value;
 
       let filtered = allProcessedCards.filter(card => {
         const matchesQuery = !query || 
           card.player_name.toLowerCase().includes(query) || 
-          card.card_set.toLowerCase().includes(query) || 
-          card.variation.toLowerCase().includes(query) ||
-          card.brand_name.toLowerCase().includes(query);
+          card.clean_set.toLowerCase().includes(query) || 
+          card.clean_variation.toLowerCase().includes(query) ||
+          card.brand_name.toLowerCase().includes(query) ||
+          card.card_num.toLowerCase().includes(query);
 
         const matchesBrand = selectedBrand === 'ALL' || card.brand_name === selectedBrand;
         const matchesYear = selectedYear === 'ALL' || String(card.card_year) === selectedYear;
-        const matchesSet = selectedSet === 'ALL' || card.card_set === selectedSet;
+        const matchesSet = selectedSet === 'ALL' || card.clean_set === selectedSet;
+        const matchesVar = selectedVar === 'ALL' || card.clean_variation === selectedVar;
 
-        return matchesQuery && matchesBrand && matchesYear && matchesSet;
+        return matchesQuery && matchesBrand && matchesYear && matchesSet && matchesVar;
       });
 
       if (sort === 'high') filtered.sort((a, b) => b.maxFMV - a.maxFMV);
@@ -293,17 +342,22 @@
                <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tighter line-clamp-1">${card.brand_name}</span>
              </div>`;
 
+        const numberBadge = card.card_num 
+          ? `<span class="text-[9px] font-mono text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">${card.card_num}</span>` 
+          : '';
+
         return `
           <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-md flex gap-3 items-start">
             ${cardImage}
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-1">
                 <span class="text-[9px] uppercase font-bold tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-1.5 py-0.5 rounded truncate">
-                  ${card.card_year} • ${card.brand_name} • ${card.card_set}
+                  ${card.card_year} • ${card.brand_name} • ${card.clean_set}
                 </span>
+                ${numberBadge}
               </div>
               <h2 class="text-sm font-bold text-slate-100 truncate mt-1">${card.player_name}</h2>
-              <p class="text-[10px] text-slate-400 truncate mb-2">${card.variation} Parallel</p>
+              <p class="text-[10px] text-cyan-400/90 font-medium truncate mb-2">${card.clean_variation}</p>
               
               <div class="space-y-1">
                 ${gradeList || '<p class="text-[10px] text-slate-500">No comps</p>'}
