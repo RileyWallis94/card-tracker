@@ -25,7 +25,7 @@
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col pb-24 select-none">
 
   <!-- Mobile Header -->
-  <header class="sticky top-0 z-30 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 space-y-2.5">
+  <header class="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 px-4 py-3 space-y-2.5">
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-black tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
@@ -40,7 +40,7 @@
       </div>
     </div>
 
-    <!-- Search & Filter Controls -->
+    <!-- Search & Filter Controls (Only visible on FMV Tab) -->
     <div id="filter-controls" class="space-y-2">
       <!-- Row 1: Search Bar & Sort -->
       <div class="flex gap-2">
@@ -77,23 +77,185 @@
     </div>
   </header>
 
-  <!-- Card List Container -->
-  <main class="flex-1 px-4 pt-4 space-y-3 max-w-md mx-auto w-full">
+  <!-- MAIN VIEWS CONTAINER -->
+  <main class="flex-1 px-4 pt-4 max-w-md mx-auto w-full">
+
+    <!-- Loading Spinner -->
     <div id="loader" class="flex justify-center items-center py-20">
       <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
     </div>
-    
-    <div id="cards-container" class="space-y-3 hidden"></div>
+
+    <!-- TAB 1: FMV CARD LIST -->
+    <section id="view-fmv" class="space-y-3 hidden">
+      <div id="cards-container" class="space-y-3"></div>
+    </section>
+
+    <!-- TAB 2: DEAL TRAY (BULK LOT CALCULATOR) -->
+    <section id="view-tray" class="space-y-4 hidden">
+      <!-- Top Controls: Target % Toggle & Clear Button -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-black text-slate-100">Show Deal Tray</h2>
+            <p class="text-[10px] text-slate-400">Stack cards, compare FMV & split lot offers</p>
+          </div>
+          <button onclick="clearDealTray()" class="text-[10px] font-bold text-rose-400 bg-rose-950/60 border border-rose-800/60 px-2.5 py-1 rounded-lg hover:bg-rose-900/60">
+            Clear Tray
+          </button>
+        </div>
+
+        <!-- Target FMV % Toggle Bar -->
+        <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg p-1">
+          <span class="text-[10px] font-bold text-slate-400 px-2">Col 2 Target %:</span>
+          <div class="flex gap-1">
+            <button type="button" onclick="setTrayTargetPct(0.75)" id="tray-pct-75" class="px-3 py-1 rounded-md text-[11px] font-bold transition">75%</button>
+            <button type="button" onclick="setTrayTargetPct(0.80)" id="tray-pct-80" class="px-3 py-1 rounded-md text-[11px] font-bold transition">80%</button>
+            <button type="button" onclick="setTrayTargetPct(0.85)" id="tray-pct-85" class="px-3 py-1 rounded-md text-[11px] font-bold transition">85%</button>
+          </div>
+        </div>
+
+        <!-- + Add Custom Free-Text Card -->
+        <div class="pt-1 border-t border-slate-800/80 space-y-2">
+          <span class="text-[10px] uppercase font-bold tracking-wider text-cyan-400 block">+ Add Custom Unlisted Card</span>
+          <div class="flex gap-1.5">
+            <input 
+              id="custom-card-name" 
+              type="text" 
+              placeholder="e.g. 2024 Yamal Base Raw..." 
+              class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+            <input 
+              id="custom-card-sticker" 
+              type="number" 
+              step="0.01" 
+              inputmode="decimal"
+              placeholder="Sticker $" 
+              class="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+            />
+            <button 
+              type="button" 
+              onclick="addCustomCardToTray()" 
+              class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs px-3 py-1.5 rounded-lg shrink-0 transition"
+            >
+              + Add
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3-Column Header Bar -->
+      <div class="grid grid-cols-3 gap-2 px-3 py-1.5 bg-slate-900/60 border border-slate-800/80 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">
+        <div>Col 1: FMV</div>
+        <div id="tray-col2-header" class="text-emerald-400">Col 2: 80% FMV</div>
+        <div class="text-cyan-400">Col 3: Sticker ➔ Split</div>
+      </div>
+
+      <!-- Tray Items Container -->
+      <div id="tray-items-container" class="space-y-2.5"></div>
+
+      <!-- Lot Summary, Dealer Offer Input & Complete Purchase Box -->
+      <div id="tray-summary-box" class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3.5 hidden">
+        <!-- 3-Column Lot Totals -->
+        <div class="grid grid-cols-3 gap-2 bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-center">
+          <div>
+            <span class="text-[9px] uppercase text-slate-400 block">Total FMV</span>
+            <span id="tray-total-fmv" class="text-sm font-black text-slate-100">$0.00</span>
+          </div>
+          <div class="border-x border-slate-800">
+            <span id="tray-total-target-label" class="text-[9px] uppercase text-emerald-400 block">80% Target</span>
+            <span id="tray-total-target" class="text-sm font-black text-emerald-400">$0.00</span>
+          </div>
+          <div>
+            <span class="text-[9px] uppercase text-cyan-400 block">Total Sticker</span>
+            <span id="tray-total-sticker" class="text-sm font-black text-cyan-300">$0.00</span>
+          </div>
+        </div>
+
+        <!-- Dealer Bundle Offer Input -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label for="tray-dealer-offer" class="text-[10px] uppercase font-bold tracking-wider text-amber-400">
+              Dealer Bundle Offer ($) — Splits Proportionally
+            </label>
+            <button type="button" onclick="fillOfferWithTarget()" class="text-[10px] text-emerald-400 underline">
+              Use Target %
+            </button>
+          </div>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
+            <input 
+              id="tray-dealer-offer" 
+              type="number" 
+              step="0.01" 
+              inputmode="decimal"
+              placeholder="Enter agreed or offered bundle price..." 
+              oninput="handleDealerOfferInput(this.value)"
+              class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-7 pr-3 py-2 text-sm font-bold text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            />
+          </div>
+          <div id="tray-lot-verdict" class="hidden rounded-lg p-2 bg-slate-950 border border-slate-800 text-[11px] flex items-center justify-between"></div>
+        </div>
+
+        <!-- Complete Lot Purchase & Remarks -->
+        <div class="pt-2 border-t border-slate-800 space-y-2">
+          <label for="tray-remarks" class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
+            Deal Remarks / Trade Notes (Optional)
+          </label>
+          <input 
+            id="tray-remarks" 
+            type="text" 
+            placeholder="e.g. Booth #18, paid cash + traded PSA 9..." 
+            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+          />
+          <button 
+            type="button" 
+            onclick="completeTrayPurchase()" 
+            class="w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 font-black text-xs py-2.5 rounded-xl shadow-lg transition"
+          >
+            ✓ Complete Lot Purchase & Save to History
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: PAST PURCHASES (LOG & EDIT) -->
+    <section id="view-purchases" class="space-y-3 hidden">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-black text-slate-100">Past Purchases</h2>
+          <p class="text-[10px] text-slate-400">Saved card show lots & single pickups</p>
+        </div>
+        <div class="text-right">
+          <span class="text-[9px] uppercase text-slate-400 block">Total Spent</span>
+          <span id="history-total-spent" class="text-sm font-black text-emerald-400">$0.00</span>
+        </div>
+      </div>
+
+      <div id="purchases-container" class="space-y-3"></div>
+    </section>
+
+    <!-- TAB 4: TRENDS (PLACEHOLDER FOR FUTURE MILESTONE) -->
+    <section id="view-trends" class="space-y-3 hidden">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-6 text-center space-y-2">
+        <svg class="w-8 h-8 text-emerald-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        <h2 class="text-sm font-black text-slate-100">Market Trends & Analytics</h2>
+        <p class="text-xs text-slate-400">Reserved for future sparkline trajectories & target alerts.</p>
+      </div>
+    </section>
+
   </main>
 
-  <!-- Deal Calculator & Comps Bottom Sheet Modal -->
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 hidden bg-emerald-500 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-full shadow-xl">
+    Added to Deal Tray
+  </div>
+
+  <!-- Single-Card Deal Calculator & Comps Bottom Sheet Modal -->
   <div id="deal-modal" class="fixed inset-0 z-50 hidden flex flex-col justify-end bg-black/75 backdrop-blur-sm">
-    <!-- Backdrop Tap to Close -->
     <div id="modal-backdrop" class="flex-1 w-full"></div>
 
-    <!-- Sheet Content -->
-    <div class="bg-slate-900 border-t border-slate-800 rounded-t-2xl p-4 pb-8 max-w-md mx-auto w-full space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
-      <!-- Handle & Close -->
+    <div class="bg-slate-900 border-t border-slate-800 rounded-t-2xl p-4 pb-8 max-w-md mx-auto w-full space-y-3.5 shadow-2xl max-h-[88vh] overflow-y-auto">
+      <!-- Header -->
       <div class="flex items-start justify-between gap-2">
         <div class="min-w-0">
           <span id="modal-set-badge" class="text-[9px] uppercase font-bold tracking-wider text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-1.5 py-0.5 rounded"></span>
@@ -119,9 +281,7 @@
 
       <!-- Instant Cash Offer Targets (75% / 80% / 85%) -->
       <div>
-        <div class="flex items-center justify-between mb-1.5">
-          <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400">Quick Show Offer Tiers (Tap to Test)</span>
-        </div>
+        <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-1.5">Quick Show Offer Tiers (Tap to Test)</span>
         <div class="grid grid-cols-3 gap-2">
           <button type="button" data-tier="0.75" class="tier-btn bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl p-2 text-center transition">
             <span class="text-[10px] font-bold text-slate-400 block">75% Margin</span>
@@ -141,7 +301,7 @@
       <!-- Dealer Sticker / Asking Price Input -->
       <div class="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5">
         <label for="ask-price-input" class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
-          Dealer Asking / Sticker Price ($)
+          Dealer Asking / Agreed Price ($)
         </label>
         <div class="relative">
           <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
@@ -150,8 +310,8 @@
             type="number" 
             step="0.01" 
             inputmode="decimal"
-            placeholder="Enter booth sticker price..." 
-            class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-7 pr-3 py-2.5 text-sm font-bold text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+            placeholder="Enter booth sticker or agreed price..." 
+            class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-7 pr-3 py-2 text-sm font-bold text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
           />
         </div>
 
@@ -166,6 +326,32 @@
             <span id="verdict-pct" class="text-[10px] font-bold block"></span>
           </div>
         </div>
+
+        <!-- Modal Action Buttons: Add to Deal Tray OR Complete Single Purchase -->
+        <div class="pt-2 border-t border-slate-800/80 space-y-2">
+          <input 
+            id="modal-single-remarks" 
+            type="text" 
+            placeholder="Optional remarks (if logging single purchase)..." 
+            class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+          />
+          <div class="grid grid-cols-2 gap-2">
+            <button 
+              type="button" 
+              onclick="addModalCardToTray()" 
+              class="bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-cyan-300 font-bold text-xs py-2 rounded-xl transition"
+            >
+              + Add to Deal Tray
+            </button>
+            <button 
+              type="button" 
+              onclick="completeSingleModalPurchase()" 
+              class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs py-2 rounded-xl transition"
+            >
+              ✓ Log Purchase
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Recent Sales Comps List -->
@@ -173,22 +359,36 @@
         <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
           Recent Verified Sales (<span id="modal-comp-count">0</span>)
         </span>
-        <div id="modal-comps-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-1"></div>
+        <div id="modal-comps-list" class="space-y-1.5 max-h-36 overflow-y-auto pr-1"></div>
       </div>
     </div>
   </div>
 
-  <!-- Bottom Navigation Tab Bar -->
-  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-6 py-2.5 flex justify-around items-center max-w-md mx-auto">
-    <button class="flex flex-col items-center text-emerald-400">
+  <!-- 4-TAB BOTTOM NAVIGATION BAR -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 px-3 py-2 flex justify-around items-center max-w-md mx-auto">
+    <!-- Tab 1: FMV -->
+    <button type="button" onclick="switchTab('fmv')" id="nav-fmv" class="flex flex-col items-center text-emerald-400 px-2 py-0.5">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
       <span class="text-[10px] font-semibold mt-1">FMV</span>
     </button>
-    <button class="flex flex-col items-center text-slate-500 hover:text-slate-300 transition">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-      <span class="text-[10px] font-medium mt-1">Portfolio</span>
+
+    <!-- Tab 2: Deal Tray -->
+    <button type="button" onclick="switchTab('tray')" id="nav-tray" class="relative flex flex-col items-center text-slate-500 hover:text-slate-300 transition px-2 py-0.5">
+      <div class="relative">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span id="tray-badge" class="hidden absolute -top-1.5 -right-2.5 bg-cyan-400 text-slate-950 text-[9px] font-black px-1.5 py-0.2 rounded-full">0</span>
+      </div>
+      <span class="text-[10px] font-medium mt-1">Deal Tray</span>
     </button>
-    <button class="flex flex-col items-center text-slate-500 hover:text-slate-300 transition">
+
+    <!-- Tab 3: Past Purchases -->
+    <button type="button" onclick="switchTab('purchases')" id="nav-purchases" class="flex flex-col items-center text-slate-500 hover:text-slate-300 transition px-2 py-0.5">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      <span class="text-[10px] font-medium mt-1">Past Purchases</span>
+    </button>
+
+    <!-- Tab 4: Trends -->
+    <button type="button" onclick="switchTab('trends')" id="nav-trends" class="flex flex-col items-center text-slate-500 hover:text-slate-300 transition px-2 py-0.5">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
       <span class="text-[10px] font-medium mt-1">Trends</span>
     </button>
@@ -198,9 +398,93 @@
     const SUPABASE_URL = "https://jitybdvzprxuosrnosgv.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_FVLqmAx_FD2LugPTmg5yAg_6e3srN37";
     const CACHE_KEY = "cardfmv_offline_cache_v1";
+    const TRAY_KEY = "cardfmv_deal_tray_v1";
+    const PURCHASES_KEY = "cardfmv_purchases_v1";
 
     let allProcessedCards = [];
+    let activeModalCardId = null;
+    let activeModalGrade = null;
     let activeModalMedian = 0;
+
+    // Deal Tray State
+    let dealTray = [];
+    let trayTargetPct = 0.80;
+    let dealerLotOffer = "";
+
+    // Past Purchases State
+    let pastPurchases = [];
+    let editingPurchaseId = null;
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 1800);
+    }
+
+    function loadLocalStates() {
+      try {
+        const savedTray = localStorage.getItem(TRAY_KEY);
+        if (savedTray) {
+          const parsed = JSON.parse(savedTray);
+          dealTray = parsed.items || [];
+          trayTargetPct = parsed.targetPct || 0.80;
+          dealerLotOffer = parsed.dealerOffer || "";
+        }
+      } catch (e) { console.error(e); }
+
+      try {
+        const savedPurchases = localStorage.getItem(PURCHASES_KEY);
+        if (savedPurchases) {
+          pastPurchases = JSON.parse(savedPurchases) || [];
+        }
+      } catch (e) { console.error(e); }
+
+      updateTrayBadge();
+    }
+
+    function saveTrayState() {
+      localStorage.setItem(TRAY_KEY, JSON.stringify({
+        items: dealTray,
+        targetPct: trayTargetPct,
+        dealerOffer: dealerLotOffer
+      }));
+      updateTrayBadge();
+    }
+
+    function savePurchasesState() {
+      localStorage.setItem(PURCHASES_KEY, JSON.stringify(pastPurchases));
+    }
+
+    function updateTrayBadge() {
+      const badge = document.getElementById('tray-badge');
+      if (dealTray.length > 0) {
+        badge.textContent = dealTray.length;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    // Tab Navigation
+    function switchTab(tabName) {
+      const views = ['fmv', 'tray', 'purchases', 'trends'];
+      views.forEach(v => {
+        document.getElementById(`view-${v}`).classList.toggle('hidden', v !== tabName);
+        const navBtn = document.getElementById(`nav-${v}`);
+        if (v === tabName) {
+          navBtn.className = "relative flex flex-col items-center text-emerald-400 px-2 py-0.5";
+        } else {
+          navBtn.className = "relative flex flex-col items-center text-slate-500 hover:text-slate-300 transition px-2 py-0.5";
+        }
+      });
+
+      // Only show search/filter bar on FMV tab
+      document.getElementById('filter-controls').classList.toggle('hidden', tabName !== 'fmv');
+
+      if (tabName === 'tray') renderDealTray();
+      if (tabName === 'purchases') renderPastPurchases();
+    }
 
     function normalizeCardMetadata(card) {
       let brand = (card.brand || "").trim();
@@ -237,7 +521,7 @@
         dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse";
         text.className = "text-[10px] font-semibold text-emerald-300";
         text.textContent = "Live";
-        sub.textContent = "Tap any grade badge to open Deal Calculator";
+        sub.textContent = "Tap grade to calc • Tap [+] for Deal Tray";
       } else {
         badge.className = "flex items-center space-x-1.5 bg-amber-950/80 border border-amber-700/70 px-2.5 py-0.5 rounded-full";
         dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400";
@@ -300,7 +584,7 @@
     }
 
     async function initApp() {
-      let loadedFromLive = false;
+      loadLocalStates();
 
       try {
         const client = window.supabase || supabase;
@@ -313,9 +597,7 @@
         if (errComps) throw errComps;
 
         allProcessedCards = processRawTables(cards, comps);
-        loadedFromLive = true;
 
-        // Save snapshot to localStorage for offline convention hall use
         const nowStr = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         localStorage.setItem(CACHE_KEY, JSON.stringify({
           timestamp: nowStr,
@@ -325,7 +607,7 @@
 
         setConnectionStatus(true);
       } catch (err) {
-        console.warn("Live fetch failed, checking local offline cache...", err);
+        console.warn("Live fetch failed, loading offline cache...", err);
         const cachedRaw = localStorage.getItem(CACHE_KEY);
         if (cachedRaw) {
           const parsed = JSON.parse(cachedRaw);
@@ -340,7 +622,7 @@
       updateCascadingFilters();
 
       document.getElementById('loader').classList.add('hidden');
-      document.getElementById('cards-container').classList.remove('hidden');
+      document.getElementById('view-fmv').classList.remove('hidden');
 
       renderCards();
       bindUIListeners();
@@ -367,7 +649,6 @@
 
       document.getElementById('variation-filter').addEventListener('change', renderCards);
 
-      // Modal Listeners
       document.getElementById('close-modal-btn').addEventListener('click', closeDealModal);
       document.getElementById('modal-backdrop').addEventListener('click', closeDealModal);
       document.getElementById('ask-price-input').addEventListener('input', evaluateDealPrice);
@@ -460,12 +741,17 @@
       varSelect.value = variations.includes(prevVar) ? prevVar : 'ALL';
     }
 
+    // ==========================================
+    // SINGLE-CARD MODAL & QUICK ADD TO DEAL TRAY
+    // ==========================================
     function openDealModal(cardId, gradeName) {
       const card = allProcessedCards.find(c => c.id === cardId);
       if (!card) return;
       const gradeObj = card.grades.find(g => g.grade === gradeName);
       if (!gradeObj) return;
 
+      activeModalCardId = cardId;
+      activeModalGrade = gradeName;
       activeModalMedian = gradeObj.median;
 
       document.getElementById('modal-set-badge').textContent = `${card.card_year} • ${card.brand_name} • ${card.clean_set} ${card.card_num || ''}`;
@@ -474,17 +760,14 @@
       document.getElementById('modal-grade').textContent = gradeObj.grade;
       document.getElementById('modal-median').textContent = `$${gradeObj.median.toFixed(2)}`;
 
-      // Populate Offer Tiers
       document.getElementById('tier-75').textContent = `$${(gradeObj.median * 0.75).toFixed(2)}`;
       document.getElementById('tier-80').textContent = `$${(gradeObj.median * 0.80).toFixed(2)}`;
       document.getElementById('tier-85').textContent = `$${(gradeObj.median * 0.85).toFixed(2)}`;
 
-      // Reset Input & Verdict
-      const input = document.getElementById('ask-price-input');
-      input.value = '';
+      document.getElementById('ask-price-input').value = '';
+      document.getElementById('modal-single-remarks').value = '';
       document.getElementById('deal-verdict-box').classList.add('hidden');
 
-      // Populate Recent Comps List
       document.getElementById('modal-comp-count').textContent = gradeObj.count;
       const compsContainer = document.getElementById('modal-comps-list');
       compsContainer.innerHTML = (gradeObj.comps || []).map(comp => `
@@ -501,7 +784,6 @@
       `).join('');
 
       document.getElementById('deal-modal').classList.remove('hidden');
-      setTimeout(() => input.focus(), 100);
     }
 
     function closeDealModal() {
@@ -545,6 +827,506 @@
       box.classList.remove('hidden');
     }
 
+    function quickAddToTray(event, cardId, gradeName, passedSticker = "") {
+      if (event) event.stopPropagation();
+      const card = allProcessedCards.find(c => c.id === cardId);
+      if (!card) return;
+      const gradeObj = card.grades.find(g => g.grade === gradeName);
+      if (!gradeObj) return;
+
+      dealTray.push({
+        tray_item_id: 'tray_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        is_custom: false,
+        title: `${card.player_name} (${card.card_year} ${card.brand_name} ${card.clean_set} ${card.card_num || ''})`,
+        subtitle: `${card.clean_variation} • ${gradeObj.grade}`,
+        grade: gradeObj.grade,
+        fmv: Number(gradeObj.median),
+        sticker: passedSticker !== "" ? Number(passedSticker) : ""
+      });
+
+      saveTrayState();
+      showToast(`Added ${card.player_name} (${gradeObj.grade}) to Deal Tray`);
+    }
+
+    function addModalCardToTray() {
+      const enteredAsk = document.getElementById('ask-price-input').value;
+      quickAddToTray(null, activeModalCardId, activeModalGrade, enteredAsk);
+      closeDealModal();
+    }
+
+    function completeSingleModalPurchase() {
+      const card = allProcessedCards.find(c => c.id === activeModalCardId);
+      if (!card) return;
+
+      const enteredAsk = parseFloat(document.getElementById('ask-price-input').value);
+      const paidPrice = !isNaN(enteredAsk) && enteredAsk > 0 ? enteredAsk : activeModalMedian;
+      const remarks = document.getElementById('modal-single-remarks').value.trim();
+      const nowStr = new Date().toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+      const newRecord = {
+        id: 'pur_' + Date.now(),
+        type: 'Single Card',
+        purchased_at: nowStr,
+        total_fmv: activeModalMedian,
+        total_sticker: paidPrice,
+        final_paid: paidPrice,
+        remarks: remarks,
+        items: [
+          {
+            title: `${card.player_name} (${card.card_year} ${card.brand_name} ${card.clean_set} ${card.card_num || ''})`,
+            subtitle: `${card.clean_variation} • ${activeModalGrade}`,
+            fmv: activeModalMedian,
+            sticker: paidPrice,
+            split_paid: paidPrice
+          }
+        ]
+      };
+
+      pastPurchases.unshift(newRecord);
+      savePurchasesState();
+      closeDealModal();
+      showToast("Saved to Past Purchases!");
+      switchTab('purchases');
+    }
+
+    // ==========================================
+    // DEAL TRAY (3-COLUMN LOT ENGINE)
+    // ==========================================
+    function setTrayTargetPct(pct) {
+      trayTargetPct = pct;
+      saveTrayState();
+      renderDealTray();
+    }
+
+    function addCustomCardToTray() {
+      const nameInput = document.getElementById('custom-card-name');
+      const stickerInput = document.getElementById('custom-card-sticker');
+      const name = nameInput.value.trim();
+      const stickerVal = parseFloat(stickerInput.value);
+
+      if (!name) {
+        showToast("Enter a custom card name first");
+        return;
+      }
+      const cleanSticker = !isNaN(stickerVal) && stickerVal > 0 ? stickerVal : 0;
+
+      // Option B: Sticker only, FMV mirrors Sticker so target % math still works
+      dealTray.push({
+        tray_item_id: 'tray_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        is_custom: true,
+        title: name,
+        subtitle: "Custom Booth Card",
+        grade: "Custom",
+        fmv: cleanSticker,
+        sticker: cleanSticker > 0 ? cleanSticker : ""
+      });
+
+      nameInput.value = '';
+      stickerInput.value = '';
+      saveTrayState();
+      renderDealTray();
+    }
+
+    function updateTrayItemSticker(trayItemId, val) {
+      const item = dealTray.find(i => i.tray_item_id === trayItemId);
+      if (!item) return;
+      const num = parseFloat(val);
+      item.sticker = !isNaN(num) && num >= 0 ? num : "";
+      // For custom cards (Option B), keep FMV mirrored to Sticker
+      if (item.is_custom) {
+        item.fmv = item.sticker !== "" ? Number(item.sticker) : 0;
+      }
+      saveTrayState();
+      updateTrayTotalsAndSplits();
+    }
+
+    function removeTrayItem(trayItemId) {
+      dealTray = dealTray.filter(i => i.tray_item_id !== trayItemId);
+      saveTrayState();
+      renderDealTray();
+    }
+
+    function clearDealTray() {
+      dealTray = [];
+      dealerLotOffer = "";
+      document.getElementById('tray-dealer-offer').value = "";
+      saveTrayState();
+      renderDealTray();
+    }
+
+    function handleDealerOfferInput(val) {
+      dealerLotOffer = val;
+      saveTrayState();
+      updateTrayTotalsAndSplits();
+    }
+
+    function fillOfferWithTarget() {
+      const totalFmv = dealTray.reduce((acc, i) => acc + (Number(i.fmv) || 0), 0);
+      if (totalFmv > 0) {
+        const targetVal = (totalFmv * trayTargetPct).toFixed(2);
+        dealerLotOffer = targetVal;
+        document.getElementById('tray-dealer-offer').value = targetVal;
+        saveTrayState();
+        updateTrayTotalsAndSplits();
+      }
+    }
+
+    function renderDealTray() {
+      const pctInt = Math.round(trayTargetPct * 100);
+      document.getElementById('tray-col2-header').textContent = `Col 2: ${pctInt}% FMV`;
+      document.getElementById('tray-total-target-label').textContent = `${pctInt}% Target`;
+
+      [75, 80, 85].forEach(p => {
+        const btn = document.getElementById(`tray-pct-${p}`);
+        if (p === pctInt) {
+          btn.className = "px-3 py-1 rounded-md text-[11px] font-black bg-emerald-500 text-slate-950 transition";
+        } else {
+          btn.className = "px-3 py-1 rounded-md text-[11px] font-bold text-slate-400 hover:text-slate-200 transition";
+        }
+      });
+
+      const container = document.getElementById('tray-items-container');
+      const summaryBox = document.getElementById('tray-summary-box');
+
+      if (dealTray.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
+            <p class="text-xs font-bold text-slate-400">Your Deal Tray is empty.</p>
+            <p class="text-[11px] text-slate-500">Tap the <span class="text-cyan-400 font-bold">[+]</span> button on any card in the FMV tab or add a custom card above.</p>
+          </div>
+        `;
+        summaryBox.classList.add('hidden');
+        return;
+      }
+
+      summaryBox.classList.remove('hidden');
+      document.getElementById('tray-dealer-offer').value = dealerLotOffer;
+
+      container.innerHTML = dealTray.map(item => `
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2 shadow">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h4 class="text-xs font-bold text-slate-100 truncate">${item.title}</h4>
+              <p class="text-[10px] ${item.is_custom ? 'text-amber-400' : 'text-cyan-400'} font-medium truncate">${item.subtitle}</p>
+            </div>
+            <button type="button" onclick="removeTrayItem('${item.tray_item_id}')" class="text-slate-500 hover:text-rose-400 p-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          <!-- 3-Column Row: Col 1 (FMV) | Col 2 (Target % FMV) | Col 3 (Sticker -> Proportional Split) -->
+          <div class="grid grid-cols-3 gap-2 items-center bg-slate-950/90 border border-slate-800/80 rounded-lg p-2">
+            <!-- Col 1: FMV -->
+            <div class="text-center">
+              <span class="text-[9px] text-slate-500 block">FMV</span>
+              <span id="fmv-${item.tray_item_id}" class="text-xs font-bold text-slate-200">$${Number(item.fmv || 0).toFixed(2)}</span>
+            </div>
+
+            <!-- Col 2: Target % FMV -->
+            <div class="text-center border-x border-slate-800/80 px-1">
+              <span class="text-[9px] text-emerald-500/80 block">${pctInt}% FMV</span>
+              <span id="target-${item.tray_item_id}" class="text-xs font-extrabold text-emerald-400">$${(Number(item.fmv || 0) * trayTargetPct).toFixed(2)}</span>
+            </div>
+
+            <!-- Col 3: Sticker Input & Proportional Split Output -->
+            <div class="space-y-1">
+              <div class="relative">
+                <span class="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">$</span>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  inputmode="decimal"
+                  placeholder="Sticker" 
+                  value="${item.sticker !== '' ? item.sticker : ''}"
+                  oninput="updateTrayItemSticker('${item.tray_item_id}', this.value)"
+                  class="w-full bg-slate-900 border border-slate-700 rounded-md pl-4 pr-1.5 py-1 text-xs font-bold text-cyan-300 placeholder-slate-600 focus:outline-none focus:border-cyan-400 text-right"
+                />
+              </div>
+              <div id="split-${item.tray_item_id}" class="text-[10px] text-right hidden"></div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      updateTrayTotalsAndSplits();
+    }
+
+    function updateTrayTotalsAndSplits() {
+      const pctInt = Math.round(trayTargetPct * 100);
+      let totalFmv = 0;
+      let totalSticker = 0;
+
+      dealTray.forEach(item => {
+        const fmvVal = Number(item.fmv) || 0;
+        const stickerVal = item.sticker !== "" ? Number(item.sticker) : fmvVal;
+        totalFmv += fmvVal;
+        totalSticker += stickerVal;
+
+        const fmvEl = document.getElementById(`fmv-${item.tray_item_id}`);
+        const targetEl = document.getElementById(`target-${item.tray_item_id}`);
+        if (fmvEl) fmvEl.textContent = `$${fmvVal.toFixed(2)}`;
+        if (targetEl) targetEl.textContent = `$${(fmvVal * trayTargetPct).toFixed(2)}`;
+      });
+
+      const totalTarget = totalFmv * trayTargetPct;
+      document.getElementById('tray-total-fmv').textContent = `$${totalFmv.toFixed(2)}`;
+      document.getElementById('tray-total-target').textContent = `$${totalTarget.toFixed(2)}`;
+      document.getElementById('tray-total-sticker').textContent = `$${totalSticker.toFixed(2)}`;
+
+      const offerNum = parseFloat(dealerLotOffer);
+      const hasValidOffer = !isNaN(offerNum) && offerNum > 0 && totalSticker > 0;
+      const ratio = hasValidOffer ? (offerNum / totalSticker) : 1;
+
+      dealTray.forEach(item => {
+        const splitEl = document.getElementById(`split-${item.tray_item_id}`);
+        if (!splitEl) return;
+
+        const itemSticker = item.sticker !== "" ? Number(item.sticker) : (Number(item.fmv) || 0);
+        if (hasValidOffer && itemSticker > 0) {
+          const splitCost = itemSticker * ratio;
+          const saved = itemSticker - splitCost;
+          splitEl.classList.remove('hidden');
+          splitEl.innerHTML = `
+            <span class="font-black text-amber-400 block">➔ $${splitCost.toFixed(2)}</span>
+            <span class="text-[9px] ${saved >= 0 ? 'text-emerald-400' : 'text-rose-400'} block">
+              ${saved >= 0 ? `Saved $${saved.toFixed(2)}` : `+$${Math.abs(saved).toFixed(2)}`}
+            </span>
+          `;
+        } else {
+          splitEl.classList.add('hidden');
+        }
+      });
+
+      const verdictBox = document.getElementById('tray-lot-verdict');
+      if (hasValidOffer) {
+        const savedVsSticker = totalSticker - offerNum;
+        const pctOffSticker = (savedVsSticker / totalSticker) * 100;
+        const pctOfFmv = totalFmv > 0 ? (offerNum / totalFmv) * 100 : 100;
+
+        verdictBox.classList.remove('hidden');
+        verdictBox.innerHTML = `
+          <div>
+            <span class="font-bold text-slate-200 block">Lot Split: ${pctOffSticker >= 0 ? `${pctOffSticker.toFixed(1)}% off Sticker` : `${Math.abs(pctOffSticker).toFixed(1)}% above Sticker`}</span>
+            <span class="text-[10px] text-slate-400 block">Offer is ${pctOfFmv.toFixed(1)}% of Total FMV (${pctInt}% target is $${totalTarget.toFixed(2)})</span>
+          </div>
+          <div class="text-right">
+            <span class="font-black ${savedVsSticker >= 0 ? 'text-emerald-400' : 'text-rose-400'} block">
+              ${savedVsSticker >= 0 ? `-$${savedVsSticker.toFixed(2)}` : `+$${Math.abs(savedVsSticker).toFixed(2)}`}
+            </span>
+            <span class="text-[9px] text-slate-400 block">Total Savings</span>
+          </div>
+        `;
+      } else {
+        verdictBox.classList.add('hidden');
+      }
+    }
+
+    function completeTrayPurchase() {
+      if (dealTray.length === 0) return;
+
+      let totalFmv = 0;
+      let totalSticker = 0;
+      dealTray.forEach(i => {
+        const fmvVal = Number(i.fmv) || 0;
+        const stickerVal = i.sticker !== "" ? Number(i.sticker) : fmvVal;
+        totalFmv += fmvVal;
+        totalSticker += stickerVal;
+      });
+
+      const offerNum = parseFloat(dealerLotOffer);
+      const finalPaid = (!isNaN(offerNum) && offerNum > 0) ? offerNum : totalSticker;
+      const ratio = totalSticker > 0 ? (finalPaid / totalSticker) : 1;
+      const remarks = document.getElementById('tray-remarks').value.trim();
+      const nowStr = new Date().toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+      const purchasedItems = dealTray.map(i => {
+        const fmvVal = Number(i.fmv) || 0;
+        const stickerVal = i.sticker !== "" ? Number(i.sticker) : fmvVal;
+        return {
+          title: i.title,
+          subtitle: i.subtitle,
+          fmv: fmvVal,
+          sticker: stickerVal,
+          split_paid: stickerVal * ratio
+        };
+      });
+
+      const newPurchase = {
+        id: 'pur_' + Date.now(),
+        type: `Bulk Lot (${dealTray.length} cards)`,
+        purchased_at: nowStr,
+        total_fmv: totalFmv,
+        total_sticker: totalSticker,
+        final_paid: finalPaid,
+        remarks: remarks,
+        items: purchasedItems
+      };
+
+      pastPurchases.unshift(newPurchase);
+      savePurchasesState();
+
+      // Clear Tray
+      dealTray = [];
+      dealerLotOffer = "";
+      document.getElementById('tray-remarks').value = "";
+      saveTrayState();
+
+      showToast("Deal saved to Past Purchases!");
+      switchTab('purchases');
+    }
+
+    // ==========================================
+    // PAST PURCHASES (VIEW, EDIT, DELETE)
+    // ==========================================
+    function renderPastPurchases() {
+      const container = document.getElementById('purchases-container');
+      const totalSpent = pastPurchases.reduce((acc, p) => acc + (Number(p.final_paid) || 0), 0);
+      document.getElementById('history-total-spent').textContent = `$${totalSpent.toFixed(2)}`;
+
+      if (pastPurchases.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 bg-slate-900/40 border border-slate-800/60 rounded-xl p-4 space-y-1">
+            <p class="text-xs font-bold text-slate-400">No past purchases logged yet.</p>
+            <p class="text-[11px] text-slate-500">Complete a bundle deal in the Deal Tray or log a single pickup from the calculator.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = pastPurchases.map(pur => {
+        const saved = (Number(pur.total_sticker) || 0) - (Number(pur.final_paid) || 0);
+        const isEditing = editingPurchaseId === pur.id;
+
+        const itemsHtml = (pur.items || []).map(item => `
+          <div class="flex items-center justify-between text-[11px] bg-slate-950/80 border border-slate-800/70 px-2.5 py-1.5 rounded-lg">
+            <div class="min-w-0 pr-2">
+              <p class="font-semibold text-slate-200 truncate">${item.title}</p>
+              <span class="text-[9px] text-cyan-400">${item.subtitle}</span>
+            </div>
+            <div class="text-right shrink-0">
+              <span class="font-bold text-emerald-400 block">$${Number(item.split_paid || 0).toFixed(2)}</span>
+              <span class="text-[9px] text-slate-500">Sticker: $${Number(item.sticker || 0).toFixed(2)}</span>
+            </div>
+          </div>
+        `).join('');
+
+        return `
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5 shadow">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span class="text-[9px] uppercase font-bold tracking-wider text-cyan-300 bg-cyan-950/80 border border-cyan-800/60 px-1.5 py-0.5 rounded">
+                  ${pur.type}
+                </span>
+                <p class="text-[11px] text-slate-400 font-medium mt-1">${pur.purchased_at}</p>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="startEditPurchase('${pur.id}')" class="text-[10px] font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded">
+                  Edit
+                </button>
+                <button type="button" onclick="deletePurchase('${pur.id}')" class="text-[10px] font-bold text-rose-400 bg-rose-950/60 border border-rose-800/60 hover:bg-rose-900/60 px-2 py-1 rounded">
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <!-- Summary Totals Strip -->
+            <div class="grid grid-cols-3 gap-2 bg-slate-950 border border-slate-800 rounded-lg p-2 text-center text-xs">
+              <div>
+                <span class="text-[9px] text-slate-500 block">Total FMV</span>
+                <span class="font-bold text-slate-300">$${Number(pur.total_fmv || 0).toFixed(2)}</span>
+              </div>
+              <div class="border-x border-slate-800">
+                <span class="text-[9px] text-slate-500 block">Sticker</span>
+                <span class="font-bold text-slate-300">$${Number(pur.total_sticker || 0).toFixed(2)}</span>
+              </div>
+              <div>
+                <span class="text-[9px] text-emerald-400 block">Paid (${saved >= 0 ? `-$${saved.toFixed(0)}` : `+$${Math.abs(saved).toFixed(0)}`})</span>
+                <span class="font-black text-emerald-400">$${Number(pur.final_paid || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <!-- Itemized Breakdown -->
+            <div class="space-y-1">
+              ${itemsHtml}
+            </div>
+
+            <!-- Remarks or Edit Form -->
+            ${isEditing ? `
+              <div class="pt-2 border-t border-slate-800 space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="text-[9px] uppercase text-slate-400 block mb-0.5">Date & Time</label>
+                    <input id="edit-date-${pur.id}" type="text" value="${pur.purchased_at}" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100" />
+                  </div>
+                  <div>
+                    <label class="text-[9px] uppercase text-slate-400 block mb-0.5">Final Paid ($)</label>
+                    <input id="edit-paid-${pur.id}" type="number" step="0.01" value="${pur.final_paid}" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100" />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-[9px] uppercase text-slate-400 block mb-0.5">Remarks</label>
+                  <input id="edit-remarks-${pur.id}" type="text" value="${(pur.remarks || '').replace(/"/g, '&quot;')}" placeholder="Add trade notes..." class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100" />
+                </div>
+                <div class="flex justify-end gap-2">
+                  <button type="button" onclick="cancelEditPurchase()" class="text-[10px] font-bold text-slate-400 px-2.5 py-1 rounded bg-slate-800">Cancel</button>
+                  <button type="button" onclick="saveEditPurchase('${pur.id}')" class="text-[10px] font-black text-slate-950 px-3 py-1 rounded bg-emerald-400">Save Changes</button>
+                </div>
+              </div>
+            ` : `
+              <div class="bg-slate-950/60 border border-slate-800/60 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300">
+                <span class="text-[9px] uppercase font-bold text-slate-500 mr-1">Remarks:</span>
+                ${pur.remarks ? pur.remarks : '<span class="text-slate-600 italic">No remarks added</span>'}
+              </div>
+            `}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function startEditPurchase(id) {
+      editingPurchaseId = id;
+      renderPastPurchases();
+    }
+
+    function cancelEditPurchase() {
+      editingPurchaseId = null;
+      renderPastPurchases();
+    }
+
+    function saveEditPurchase(id) {
+      const pur = pastPurchases.find(p => p.id === id);
+      if (!pur) return;
+
+      const newDate = document.getElementById(`edit-date-${id}`).value.trim();
+      const newPaid = parseFloat(document.getElementById(`edit-paid-${id}`).value);
+      const newRemarks = document.getElementById(`edit-remarks-${id}`).value.trim();
+
+      if (newDate) pur.purchased_at = newDate;
+      if (!isNaN(newPaid) && newPaid >= 0) {
+        pur.final_paid = newPaid;
+        const ratio = pur.total_sticker > 0 ? (newPaid / pur.total_sticker) : 1;
+        (pur.items || []).forEach(i => {
+          i.split_paid = (Number(i.sticker) || 0) * ratio;
+        });
+      }
+      pur.remarks = newRemarks;
+
+      editingPurchaseId = null;
+      savePurchasesState();
+      renderPastPurchases();
+      showToast("Purchase updated");
+    }
+
+    function deletePurchase(id) {
+      pastPurchases = pastPurchases.filter(p => p.id !== id);
+      savePurchasesState();
+      renderPastPurchases();
+      showToast("Purchase deleted");
+    }
+
+    // ==========================================
+    // MAIN FMV CARD LIST RENDERER
+    // ==========================================
     function renderCards() {
       const container = document.getElementById('cards-container');
       const query = document.getElementById('search-input').value.toLowerCase().trim();
@@ -580,22 +1362,35 @@
       }
 
       container.innerHTML = filtered.map(card => {
-        const gradeList = card.grades.map(g => `
-          <button 
-            type="button"
-            onclick="openDealModal('${card.id}', '${g.grade.replace(/'/g, "\\'")}')"
-            class="w-full flex items-center justify-between bg-slate-950/90 hover:bg-slate-800/90 active:scale-[0.99] border border-slate-800/90 px-2.5 py-1.5 rounded-lg transition text-left"
-          >
-            <div class="flex items-center space-x-1.5">
-              <span class="text-[11px] font-semibold ${g.grade === 'PSA 10' ? 'text-amber-400' : 'text-slate-300'}">${g.grade}</span>
-              <span class="text-[9px] text-emerald-400/80 bg-emerald-950/60 px-1 rounded">Calc ⚖️</span>
+        const gradeList = card.grades.map(g => {
+          const escapedGrade = g.grade.replace(/'/g, "\\'");
+          return `
+            <div class="flex items-center gap-1.5">
+              <button 
+                type="button"
+                onclick="openDealModal('${card.id}', '${escapedGrade}')"
+                class="flex-1 flex items-center justify-between bg-slate-950/90 hover:bg-slate-800/90 active:scale-[0.99] border border-slate-800/90 px-2.5 py-1.5 rounded-lg transition text-left"
+              >
+                <div class="flex items-center space-x-1.5">
+                  <span class="text-[11px] font-semibold ${g.grade === 'PSA 10' ? 'text-amber-400' : 'text-slate-300'}">${g.grade}</span>
+                  <span class="text-[9px] text-emerald-400/80 bg-emerald-950/60 px-1 rounded">Calc ⚖️</span>
+                </div>
+                <div class="text-right">
+                  <span class="text-xs font-bold text-slate-100">$${g.median.toFixed(2)}</span>
+                  <span class="text-[9px] text-slate-500 ml-1">(${g.count})</span>
+                </div>
+              </button>
+              <button
+                type="button"
+                title="Add to Deal Tray"
+                onclick="quickAddToTray(event, '${card.id}', '${escapedGrade}')"
+                class="bg-cyan-950/80 hover:bg-cyan-900 active:scale-95 border border-cyan-800/70 text-cyan-300 font-black text-xs px-2.5 py-1.5 rounded-lg transition shrink-0"
+              >
+                +
+              </button>
             </div>
-            <div class="text-right">
-              <span class="text-xs font-bold text-slate-100">$${g.median.toFixed(2)}</span>
-              <span class="text-[9px] text-slate-500 ml-1">(${g.count} sales)</span>
-            </div>
-          </button>
-        `).join('');
+          `;
+        }).join('');
 
         const cardImage = card.image_url 
           ? `<img src="${card.image_url}" class="w-16 h-22 object-cover rounded-lg border border-slate-700/80 shadow" alt="${card.player_name}" />`
